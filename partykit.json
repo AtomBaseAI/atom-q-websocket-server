@@ -1,0 +1,14 @@
+{
+  "name": "quiz-party-server",
+  "main": "dist/server.js",
+  "compatibilityDate": "2024-12-18",
+  "serve": {
+    "path": "public"
+  },
+  "parties": {
+    "quiz": "party/quiz.ts"
+  },
+  "vars": {
+    "ENVIRONMENT": "development"
+  }
+}
