@@ -7,13 +7,13 @@ import { WebSocket } from 'ws';
 import * as readline from 'readline';
 
 // Local server URL
-const WS_URL = 'http://127.0.0.1:1999/party';
+// const WS_URL = 'http://127.0.0.1:1999/party';
 
 // Remote server URL (commented out)
-// const WS_URL = 'https://atomq-quiz-partykit-server.atombaseai.partykit.dev'.replace(
-//   'https://',
-//   'wss://'
-// );
+const WS_URL = 'https://atomq-quiz-partykit-server.atombaseai.partykit.dev'.replace(
+  'https://',
+  'wss://'
+);
 
 // Color codes for terminal output
 const colors: Record<string, string> = {
