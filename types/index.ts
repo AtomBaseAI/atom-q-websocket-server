@@ -1,5 +1,5 @@
 // Message Types
-export type MessageType = 
+export type MessageType =
   | 'JOIN_LOBBY'
   | 'LEAVE_LOBBY'
   | 'START_QUIZ'
@@ -8,6 +8,7 @@ export type MessageType =
   | 'QUESTION_START'
   | 'SUBMIT_ANSWER'
   | 'SHOW_ANSWER'
+  | 'SHOW_LEADERBOARD'
   | 'NEXT_QUESTION'
   | 'LEADERBOARD_UPDATE'
   | 'WAITING_SCREEN'
@@ -29,12 +30,14 @@ export type UserStatus = 'ONLINE' | 'OFFLINE' | 'IN_QUIZ';
 export type AnswerStatus = 'correct' | 'incorrect' | 'pending';
 
 // Quiz States
-export type QuizState = 
+export type QuizState =
   | 'LOBBY'
   | 'GET_READY'
   | 'QUESTION_LOADER'
   | 'QUESTION_ACTIVE'
+  | 'QUESTION_COMPLETE'
   | 'SHOW_ANSWER'
+  | 'WAITING_LEADERBOARD'
   | 'LEADERBOARD'
   | 'WAITING'
   | 'ENDED';
@@ -124,10 +127,17 @@ export interface ShowAnswerMessage extends BaseMessage {
   };
 }
 
+export interface ShowLeaderboardMessage extends BaseMessage {
+  type: 'SHOW_LEADERBOARD';
+  payload: {
+    activityKey: string;
+  };
+}
+
 export interface NextQuestionMessage extends BaseMessage {
   type: 'NEXT_QUESTION';
   payload: {
-    nextIndex: number;
+    activityKey: string;
   };
 }
 
@@ -205,7 +215,7 @@ export interface ErrorMessage extends BaseMessage {
 }
 
 // Union type for all messages
-export type Message = 
+export type Message =
   | JoinLobbyMessage
   | LeaveLobbyMessage
   | StartQuizMessage
@@ -214,6 +224,7 @@ export type Message =
   | QuestionStartMessage
   | SubmitAnswerMessage
   | ShowAnswerMessage
+  | ShowLeaderboardMessage
   | NextQuestionMessage
   | LeaderboardUpdateMessage
   | WaitingScreenMessage

@@ -1,12 +1,14 @@
 import type * as Party from 'partykit/server';
 import { QuizStore } from '../store/quizStore';
 import { TimerService } from '../utils/timer';
-import { 
-  Message, 
-  User, 
+import {
+  Message,
+  User,
   JoinLobbyMessage,
   SubmitAnswerMessage,
   StartQuizMessage,
+  ShowLeaderboardMessage,
+  NextQuestionMessage,
   UserInfo
 } from '../types';
 
@@ -39,28 +41,36 @@ export default class QuizServer implements Party.Server {
     try {
       const data: Message = JSON.parse(message);
       console.log('Received message:', data.type);
-      
+
       switch (data.type) {
         case 'JOIN_LOBBY':
           this.handleJoinLobby(data as JoinLobbyMessage, sender);
           break;
-          
+
         case 'LEAVE_LOBBY':
           this.handleLeaveLobby(data, sender);
           break;
-          
+
         case 'START_QUIZ':
           await this.handleStartQuiz(data as StartQuizMessage, sender);
           break;
-          
+
         case 'SUBMIT_ANSWER':
           this.handleSubmitAnswer(data as SubmitAnswerMessage, sender);
           break;
-          
+
+        case 'SHOW_LEADERBOARD':
+          await this.handleShowLeaderboard(data as ShowLeaderboardMessage, sender);
+          break;
+
+        case 'NEXT_QUESTION':
+          await this.handleNextQuestion(data as NextQuestionMessage, sender);
+          break;
+
         case 'SYNC_TIME':
           this.sendSyncTime(sender);
           break;
-          
+
         default:
           console.log('Unknown message type:', data.type);
       }
@@ -144,33 +154,81 @@ export default class QuizServer implements Party.Server {
   }
 
   /**
-   * Main quiz flow controller
+   * Main quiz flow controller - starts first question only, then waits for admin
    */
   private async runQuizFlow(activityKey: string): Promise<void> {
     const room = this.quizStore.getRoom(activityKey);
     if (!room) return;
-    
-    const totalQuestions = room.questions.length;
-    
-    for (let i = 0; i < totalQuestions; i++) {
-      // Get Ready Screen (5 seconds)
-      await this.getReadyPhase(activityKey, i);
-      
-      // Question Loader (5 seconds)
-      await this.questionLoaderPhase(activityKey, i);
-      
-      // Active Question (15 seconds)
-      await this.questionActivePhase(activityKey, i);
-      
-      // Show Answer
-      await this.showAnswerPhase(activityKey, i);
+
+    // Start the first question
+    await this.startQuestion(activityKey, 0);
+  }
+
+  /**
+   * Start a specific question
+   */
+  private async startQuestion(activityKey: string, questionIndex: number): Promise<void> {
+    const room = this.quizStore.getRoom(activityKey);
+    if (!room) return;
+
+    if (questionIndex >= room.questions.length) {
+      // All questions done, show final leaderboard
+      await this.showFinalLeaderboard(activityKey);
+      return;
     }
-    
-    // Show final leaderboard
-    await this.showLeaderboard(activityKey);
-    
-    // Waiting screen for next quiz
-    await this.waitingScreen(activityKey);
+
+    // Update current question index
+    room.currentQuestionIndex = questionIndex;
+
+    // Get Ready Screen (5 seconds)
+    await this.getReadyPhase(activityKey, questionIndex);
+
+    // Question Loader (5 seconds)
+    await this.questionLoaderPhase(activityKey, questionIndex);
+
+    // Active Question (15 seconds)
+    await this.questionActivePhase(activityKey, questionIndex);
+
+    // Show Answer
+    await this.showAnswerPhase(activityKey, questionIndex);
+
+    // Set state to waiting for leaderboard
+    this.quizStore.setQuizState(activityKey, 'WAITING_LEADERBOARD');
+  }
+
+  /**
+   * Handle show leaderboard request from admin
+   */
+  private async handleShowLeaderboard(data: ShowLeaderboardMessage, connection: Party.Connection): Promise<void> {
+    const { activityKey } = data.payload;
+
+    // Verify admin
+    if (!this.quizStore.isAdmin(activityKey, (connection as any).userId)) {
+      this.sendError(connection, 'UNAUTHORIZED', 'Only admin can show leaderboard');
+      return;
+    }
+
+    await this.updateLeaderboard(activityKey);
+  }
+
+  /**
+   * Handle next question request from admin
+   */
+  private async handleNextQuestion(data: NextQuestionMessage, connection: Party.Connection): Promise<void> {
+    const { activityKey } = data.payload;
+
+    // Verify admin
+    if (!this.quizStore.isAdmin(activityKey, (connection as any).userId)) {
+      this.sendError(connection, 'UNAUTHORIZED', 'Only admin can move to next question');
+      return;
+    }
+
+    const room = this.quizStore.getRoom(activityKey);
+    if (!room) return;
+
+    // Move to next question
+    const nextIndex = room.currentQuestionIndex + 1;
+    await this.startQuestion(activityKey, nextIndex);
   }
 
   /**
@@ -266,12 +324,12 @@ export default class QuizServer implements Party.Server {
   private async showAnswerPhase(activityKey: string, questionIndex: number): Promise<void> {
     const room = this.quizStore.getRoom(activityKey);
     if (!room) return;
-    
+
     const question = room.questions[questionIndex];
     const stats = this.quizStore.getQuestionStats(activityKey, question.id);
-    
+
     this.quizStore.setQuizState(activityKey, 'SHOW_ANSWER');
-    
+
     // Broadcast answer with stats
     this.room.broadcast(JSON.stringify({
       type: 'SHOW_ANSWER',
@@ -286,12 +344,11 @@ export default class QuizServer implements Party.Server {
         }
       }
     }));
-    
+
     // Show answer for 3 seconds
     await this.timerService.sleep(3000);
-    
-    // Update leaderboard after each question
-    await this.updateLeaderboard(activityKey);
+
+    // Don't auto-update leaderboard - wait for admin to click "Show Leaderboard"
   }
 
   /**
@@ -329,13 +386,13 @@ export default class QuizServer implements Party.Server {
   }
 
   /**
-   * Update and broadcast leaderboard
+   * Update and broadcast leaderboard (manual - no auto sleep)
    */
   private async updateLeaderboard(activityKey: string): Promise<void> {
     const leaderboard = this.quizStore.getLeaderboard(activityKey);
-    
+
     this.quizStore.setQuizState(activityKey, 'LEADERBOARD');
-    
+
     this.room.broadcast(JSON.stringify({
       type: 'LEADERBOARD_UPDATE',
       payload: {
@@ -343,28 +400,31 @@ export default class QuizServer implements Party.Server {
         activityKey
       }
     }));
-    
-    // Show leaderboard for 5 seconds
-    await this.timerService.sleep(5000);
+
+    // Don't auto-sleep - wait for admin to click next question
+    console.log(`Leaderboard updated for room ${activityKey}`);
   }
 
   /**
-   * Show final leaderboard
+   * Show final leaderboard (quiz complete)
    */
-  private async showLeaderboard(activityKey: string): Promise<void> {
+  private async showFinalLeaderboard(activityKey: string): Promise<void> {
     const leaderboard = this.quizStore.getLeaderboard(activityKey);
-    
-    this.quizStore.setQuizState(activityKey, 'LEADERBOARD');
-    
+
+    this.quizStore.setQuizState(activityKey, 'ENDED');
+
     this.room.broadcast(JSON.stringify({
       type: 'QUIZ_END',
       payload: {
         finalLeaderboard: leaderboard
       }
     }));
-    
+
     // Show leaderboard for 10 seconds
     await this.timerService.sleep(10000);
+
+    // Waiting screen
+    await this.waitingScreen(activityKey);
   }
 
   /**

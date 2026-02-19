@@ -15,5 +15,5 @@
     "declarationMap": true
   },
   "include": ["./**/*.ts"],
-  "exclude": ["node_modules", "dist", "skills"]
+  "exclude": ["node_modules", "dist", "skills", "test"]
 }
