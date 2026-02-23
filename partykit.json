@@ -1,6 +1,6 @@
 {
   "name": "atomq-quiz-partykit-server",
-  "main": "dist/server.js",
+  "main": "server.ts",
   "compatibilityDate": "2024-12-18",
   "parties": {
     "quiz": "party/quiz.ts"
