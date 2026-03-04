@@ -3,6 +3,8 @@ export type MessageType =
   | 'JOIN_LOBBY'
   | 'LEAVE_LOBBY'
   | 'START_QUIZ'
+  | 'END_ACTIVITY'
+  | 'ACTIVITY_ENDED'
   | 'GET_READY'
   | 'QUESTION_LOADER'
   | 'QUESTION_START'
@@ -79,6 +81,13 @@ export interface StartQuizMessage extends BaseMessage {
     activityKey: string;
     questions: Question[];
     totalQuestions: number;
+  };
+}
+
+export interface EndActivityMessage extends BaseMessage {
+  type: 'END_ACTIVITY';
+  payload: {
+    activityKey: string;
   };
 }
 
@@ -233,6 +242,14 @@ export interface QuizEndedMessage extends BaseMessage {
   };
 }
 
+export interface ActivityEndedMessage extends BaseMessage {
+  type: 'ACTIVITY_ENDED';
+  payload: {
+    reason: 'admin_ended';
+    finalLeaderboard?: LeaderboardEntry[];
+  };
+}
+
 export interface AdminLeftMessage extends BaseMessage {
   type: 'ADMIN_LEFT';
   payload: {
@@ -252,6 +269,8 @@ export type Message =
   | JoinLobbyMessage
   | LeaveLobbyMessage
   | StartQuizMessage
+  | EndActivityMessage
+  | ActivityEndedMessage
   | GetReadyMessage
   | QuestionLoaderMessage
   | QuestionStartMessage

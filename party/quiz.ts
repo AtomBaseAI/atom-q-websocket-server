@@ -7,6 +7,7 @@ import {
   JoinLobbyMessage,
   SubmitAnswerMessage,
   StartQuizMessage,
+  EndActivityMessage,
   ShowLeaderboardMessage,
   NextQuestionMessage,
   UserInfo
@@ -53,6 +54,10 @@ export default class QuizServer implements Party.Server {
 
         case 'START_QUIZ':
           await this.handleStartQuiz(data as StartQuizMessage, sender);
+          break;
+
+        case 'END_ACTIVITY':
+          await this.handleEndActivity(data as EndActivityMessage, sender);
           break;
 
         case 'SUBMIT_ANSWER':
@@ -173,6 +178,40 @@ export default class QuizServer implements Party.Server {
   }
 
   /**
+   * Handle activity end (admin manually ends the activity)
+   */
+  private async handleEndActivity(data: EndActivityMessage, connection: Party.Connection): Promise<void> {
+    const { activityKey } = data.payload;
+
+    // Verify admin
+    if (!this.quizStore.isAdmin(activityKey, (connection as any).userId)) {
+      this.sendError(connection, 'UNAUTHORIZED', 'Only admin can end the activity');
+      return;
+    }
+
+    console.log(`Admin ending activity in room ${activityKey}`);
+
+    // Get final leaderboard before ending
+    const leaderboard = this.quizStore.getLeaderboard(activityKey);
+
+    // Mark quiz as ended
+    this.quizStore.endQuiz(activityKey);
+
+    // Broadcast activity ended message to all users
+    this.room.broadcast(JSON.stringify({
+      type: 'ACTIVITY_ENDED',
+      payload: {
+        reason: 'admin_ended',
+        finalLeaderboard: leaderboard
+      },
+      timestamp: Date.now()
+    }));
+
+    // Clear all timers
+    this.timerService.clearAll();
+  }
+
+  /**
    * Main quiz flow controller - starts first question only, then waits for admin
    */
   private async runQuizFlow(activityKey: string): Promise<void> {
@@ -199,11 +238,16 @@ export default class QuizServer implements Party.Server {
     // Update current question index
     room.currentQuestionIndex = questionIndex;
 
-    // Get Ready Screen (5 seconds)
-    await this.getReadyPhase(activityKey, questionIndex);
-
-    // Question Loader (5 seconds)
-    await this.questionLoaderPhase(activityKey, questionIndex);
+    // First question uses preparing_start phase (10 seconds total)
+    // Subsequent questions use get_ready + question_loader phases (5+5=10 seconds)
+    if (questionIndex === 0) {
+      // First question - single 10-second preparing phase
+      await this.preparingStartPhase(activityKey, questionIndex);
+    } else {
+      // Subsequent questions - get ready (5s) + question loader (5s)
+      await this.getReadyPhase(activityKey, questionIndex);
+      await this.questionLoaderPhase(activityKey, questionIndex);
+    }
 
     // Active Question (15 seconds)
     await this.questionActivePhase(activityKey, questionIndex);
@@ -248,6 +292,27 @@ export default class QuizServer implements Party.Server {
     // Move to next question
     const nextIndex = room.currentQuestionIndex + 1;
     await this.startQuestion(activityKey, nextIndex);
+  }
+
+  /**
+   * Preparing Start Phase - 10 seconds (first question only)
+   */
+  private async preparingStartPhase(activityKey: string, questionIndex: number): Promise<void> {
+    const room = this.quizStore.getRoom(activityKey);
+    if (!room) return;
+
+    this.quizStore.setQuizState(activityKey, 'PREPARING_START');
+
+    this.room.broadcast(JSON.stringify({
+      type: 'PREPARING_START',
+      payload: {
+        duration: 10,
+        questionIndex: questionIndex + 1,
+        totalQuestions: room.questions.length
+      }
+    }));
+
+    await this.timerService.sleep(10000);
   }
 
   /**
