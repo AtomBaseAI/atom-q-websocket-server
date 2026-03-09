@@ -300,6 +300,7 @@ export class QuizStore {
       avatar: u.avatar,
       role: u.role,
       status: u.status,
+      rollNumber: u.rollNumber,
     }));
   }
 

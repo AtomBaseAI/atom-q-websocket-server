@@ -3,8 +3,6 @@ export type MessageType =
   | 'JOIN_LOBBY'
   | 'LEAVE_LOBBY'
   | 'START_QUIZ'
-  | 'END_ACTIVITY'
-  | 'ACTIVITY_ENDED'
   | 'GET_READY'
   | 'QUESTION_LOADER'
   | 'QUESTION_START'
@@ -63,6 +61,7 @@ export interface JoinLobbyMessage extends BaseMessage {
     avatar: string;
     activityKey: string;
     role: UserRole;
+    rollNumber?: string;
   };
 }
 
@@ -81,13 +80,6 @@ export interface StartQuizMessage extends BaseMessage {
     activityKey: string;
     questions: Question[];
     totalQuestions: number;
-  };
-}
-
-export interface EndActivityMessage extends BaseMessage {
-  type: 'END_ACTIVITY';
-  payload: {
-    activityKey: string;
   };
 }
 
@@ -242,14 +234,6 @@ export interface QuizEndedMessage extends BaseMessage {
   };
 }
 
-export interface ActivityEndedMessage extends BaseMessage {
-  type: 'ACTIVITY_ENDED';
-  payload: {
-    reason: 'admin_ended';
-    finalLeaderboard?: LeaderboardEntry[];
-  };
-}
-
 export interface AdminLeftMessage extends BaseMessage {
   type: 'ADMIN_LEFT';
   payload: {
@@ -269,8 +253,6 @@ export type Message =
   | JoinLobbyMessage
   | LeaveLobbyMessage
   | StartQuizMessage
-  | EndActivityMessage
-  | ActivityEndedMessage
   | GetReadyMessage
   | QuestionLoaderMessage
   | QuestionStartMessage
@@ -302,6 +284,7 @@ export interface User {
   joinedAt: number;
   totalScore: number;
   answers: UserAnswer[];
+  rollNumber?: string;
 }
 
 export interface UserInfo {
@@ -310,6 +293,7 @@ export interface UserInfo {
   avatar: string;
   role: UserRole;
   status?: UserStatus;
+  rollNumber?: string;
 }
 
 export interface UserAnswer {
