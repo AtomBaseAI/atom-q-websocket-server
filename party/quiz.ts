@@ -271,7 +271,6 @@ export default class QuizServer implements Party.Server {
         question: question.text,
         options: question.options,
         correctAnswer: question.correctAnswer,
-        duration: question.duration || 15
       }
     }));
 
@@ -299,7 +298,6 @@ export default class QuizServer implements Party.Server {
         question: question.text,
         options: question.options,
         correctAnswer: question.correctAnswer,
-        duration: question.duration || 15
       }
     }));
 
