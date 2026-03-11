@@ -256,18 +256,25 @@ export default class QuizServer implements Party.Server {
   private async getReadyPhase(activityKey: string, questionIndex: number): Promise<void> {
     const room = this.quizStore.getRoom(activityKey);
     if (!room) return;
-    
+
+    const question = room.questions[questionIndex];
+
     this.quizStore.setQuizState(activityKey, 'GET_READY');
-    
+
     this.room.broadcast(JSON.stringify({
       type: 'GET_READY',
       payload: {
         duration: 5,
         questionIndex: questionIndex + 1,
-        totalQuestions: room.questions.length
+        totalQuestions: room.questions.length,
+        questionId: question.id,
+        question: question.text,
+        options: question.options,
+        correctAnswer: question.correctAnswer,
+        duration: question.duration || 15
       }
     }));
-    
+
     await this.timerService.sleep(5000);
   }
 
@@ -275,16 +282,27 @@ export default class QuizServer implements Party.Server {
    * Question Loader Phase - 5 seconds
    */
   private async questionLoaderPhase(activityKey: string, questionIndex: number): Promise<void> {
+    const room = this.quizStore.getRoom(activityKey);
+    if (!room) return;
+
+    const question = room.questions[questionIndex];
+
     this.quizStore.setQuizState(activityKey, 'QUESTION_LOADER');
-    
+
     this.room.broadcast(JSON.stringify({
       type: 'QUESTION_LOADER',
       payload: {
         duration: 5,
-        questionIndex: questionIndex + 1
+        questionIndex: questionIndex + 1,
+        totalQuestions: room.questions.length,
+        questionId: question.id,
+        question: question.text,
+        options: question.options,
+        correctAnswer: question.correctAnswer,
+        duration: question.duration || 15
       }
     }));
-    
+
     await this.timerService.sleep(5000);
   }
 
