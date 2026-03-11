@@ -84,7 +84,7 @@ export default class QuizServer implements Party.Server {
    * Handle user joining lobby
    */
   private handleJoinLobby(data: JoinLobbyMessage, connection: Party.Connection): void {
-    const { userId, nickname, avatar, activityKey, role, rollNumber } = data.payload;
+    const { userId, nickname, avatar, activityKey, role } = data.payload;
 
     // Check if quiz has already started (block late joiners)
     if (role === 'USER' && this.quizStore.hasQuizStarted(activityKey)) {
@@ -107,7 +107,6 @@ export default class QuizServer implements Party.Server {
       joinedAt: Date.now(),
       totalScore: 0,
       answers: [],
-      rollNumber,
     };
 
     // Add to store
@@ -130,7 +129,7 @@ export default class QuizServer implements Party.Server {
       });
     }
 
-    console.log(`User ${nickname} (${role}) joined room ${activityKey}${rollNumber ? ` [Roll: ${rollNumber}]` : ''}`);
+    console.log(`User ${nickname} (${role}) joined room ${activityKey}`);
   }
 
   /**
@@ -309,6 +308,7 @@ export default class QuizServer implements Party.Server {
         questionId: question.id,
         question: question.text,
         options: question.options,
+        correctAnswer: question.correctAnswer,
         duration,
         questionIndex: questionIndex + 1,
         totalQuestions: room.questions.length
@@ -527,29 +527,10 @@ export default class QuizServer implements Party.Server {
     const role = (connection as any).role;
 
     if (userId && activityKey) {
-      // If admin disconnects, check if there are other admin connections
+      // If admin disconnects, end the quiz for everyone
       if (role === 'ADMIN') {
-        console.log(`Admin ${userId} disconnected from room ${activityKey}. Checking for other admin connections...`);
-        
-        // Count other admin connections
-        let otherAdminConnections = 0;
-        for (const [connId, conn] of this.connections.entries()) {
-          if (connId !== connection.id && (conn as any).role === 'ADMIN') {
-            otherAdminConnections++;
-            console.log(`Found other admin connection: ${connId}`);
-          }
-        }
-        
-        // Only end quiz if this is the last admin connection
-        if (otherAdminConnections === 0) {
-          console.log(`No other admin connections found. Ending quiz for all users.`);
-          this.handleAdminDisconnect(activityKey);
-        } else {
-          console.log(`Other admin connections (${otherAdminConnections}) found. Quiz continues.`);
-          // Just remove user from room, don't end quiz
-          this.quizStore.removeUser(activityKey, userId);
-          this.broadcastUserUpdate(activityKey);
-        }
+        console.log(`Admin ${userId} disconnected from room ${activityKey}. Ending quiz for all users.`);
+        this.handleAdminDisconnect(activityKey);
       } else {
         this.quizStore.removeUser(activityKey, userId);
         this.broadcastUserUpdate(activityKey);
